@@ -2,10 +2,9 @@ name: Update MikroTik Blocklist via BGPView
 
 on:
   schedule:
-    - cron: '0 3 * * 1' # Berjalan setiap Senin jam 3 pagi
-  workflow_dispatch: # Tombol untuk menjalankan manual
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
 
-# Memberikan izin pada workflow untuk menulis ke repository
 permissions:
   contents: write
 
@@ -13,15 +12,12 @@ jobs:
   update-blocklist:
     runs-on: ubuntu-latest
     steps:
-      # Langkah 1: Mengambil salinan repository
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Langkah 2: Membuat file blocklist dari BGPView
       - name: Generate Blocklist File from BGPView
         run: |
-          #!/binbash
-          # Daftar ASN (Azure & GCP sudah dihapus)
+          #!/bin/bash
           ASN_LIST=("16509" "14618" "37963" "45102" "55967" "14061" "31898" "24940")
           FILENAME="Cloud_Blocklist.rsc"
 
@@ -32,15 +28,20 @@ jobs:
           for ASN in "${ASN_LIST[@]}"; do
             echo "--> Memproses ASN: $ASN dari BGPView"
             
-            # Menggunakan curl yang menyamar sebagai browser dan jq untuk mem-parsing JSON
+            # Simpan output mentah dari curl ke file temp.out
             curl -s -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36" \
-            "https://api.bgpview.io/asn/$ASN/prefixes" | \
-            jq -r '.data.ipv4_prefixes[].prefix' | \
+            "https://api.bgpview.io/asn/$ASN/prefixes" -o temp.out
+
+            echo "--- Menampilkan isi mentah respons server ---"
+            cat temp.out
+            echo "-------------------------------------------"
+            
+            # Coba proses dengan jq, jika gagal akan terlihat dari log di atas
+            cat temp.out | jq -r '.data.ipv4_prefixes[].prefix' | \
             sed -e "s/^/add list=Cloud_Blocklist address=/" -e "s/$/ comment=ASN:$ASN/" >> $FILENAME
           done
           echo "# Update Complete" >> $FILENAME
 
-      # Langkah 3: Simpan perubahan (commit & push) kembali ke repository
       - name: Commit and push the updated blocklist
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
