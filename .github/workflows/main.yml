@@ -1,21 +1,7 @@
-name: Update MikroTik Blocklist
-
-on:
-  schedule:
-    - cron: '0 2 * * 1' # Berjalan setiap Senin jam 2 pagi
-  workflow_dispatch: # Tombol untuk menjalankan manual
-
-jobs:
-  update-gist:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Generate Blocklist File
+- name: Generate Blocklist File
         run: |
           #!/bin/bash
-          ASN_LIST=("16509" "14618" "37963" "45102" "55967" "14061" "31898" "24940") # Daftar ASN (Azure & GCP sudah dihapus)
+          ASN_LIST=("16509" "14618" "37963" "45102" "55967" "14061" "31898" "24940")
           FILENAME="Cloud_Blocklist.rsc"
 
           echo "# Generated on $(date)" > $FILENAME
@@ -23,17 +9,15 @@ jobs:
           echo "remove [find list=Cloud_Blocklist]" >> $FILENAME
 
           for ASN in "${ASN_LIST[@]}"; do
-            echo "# Fetching ASN: $ASN"
-            # Menggunakan curl untuk mengambil data dan memformatnya menjadi perintah MikroTik
-            curl -s "https://stat.ripe.net/data/announced-prefixes/data.txt?resource=AS$ASN" | \
-            grep -E '^[0-9]+\.' | \
-            sed -e "s/^/add list=Cloud_Blocklist address=/" -e "s/$/ comment=ASN:$ASN/" >> $FILENAME
+            echo "--> Memproses ASN: $ASN"
+            # Menggunakan curl dengan flag -f (fail silently on server errors) dan menyimpan ke variabel
+            DATA=$(curl -sf "https://stat.ripe.net/data/announced-prefixes/data.txt?resource=AS$ASN")
+            
+            if [ -z "$DATA" ]; then
+              echo "PERINGATAN: Tidak ada data yang diterima untuk ASN $ASN. Melewati."
+            else
+              echo "$DATA" | grep -E '^[0-9]+\.' | \
+              sed -e "s/^/add list=Cloud_Blocklist address=/" -e "s/$/ comment=ASN:$ASN/" >> $FILENAME
+            fi
           done
           echo "# Update Complete" >> $FILENAME
-
-      - name: Update Gist using GitHub CLI
-        env:
-          GH_TOKEN: ${{ secrets.GIST_TOKEN }}
-          GIST_ID: ${{ secrets.GIST_ID }}
-        run: |
-          gh gist edit "$GIST_ID" Cloud_Blocklist.rsc
