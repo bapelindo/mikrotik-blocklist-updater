@@ -1,42 +1,30 @@
-name: Update MikroTik Blocklist
-
-on:
-  schedule:
-    - cron: '0 2 * * 1' # Berjalan setiap Senin jam 2 pagi
-  workflow_dispatch: # Tombol untuk menjalankan manual
-
-# Memberikan izin pada workflow untuk menulis ke repository
-permissions:
-  contents: write
-
-jobs:
-  update-blocklist:
-    runs-on: ubuntu-latest
-    steps:
-      # Langkah 1: Mengambil salinan repository
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      # Langkah 2: Membuat file blocklist
-      - name: Generate Blocklist File
+- name: Generate Blocklist File
         run: |
           #!/bin/bash
           ASN_LIST=("16509" "14618" "37963" "45102" "55967" "14061" "31898" "24940")
           FILENAME="Cloud_Blocklist.rsc"
+
           echo "# Generated on $(date)" > $FILENAME
           echo "/ip firewall address-list" > $FILENAME
           echo "remove [find list=Cloud_Blocklist]" >> $FILENAME
+
           for ASN in "${ASN_LIST[@]}"; do
-            echo "# Fetching ASN: $ASN"
-            curl -s "https://stat.ripe.net/data/announced-prefixes/data.txt?resource=AS$ASN" | \
-            grep -E '^[0-9]+\.' | \
-            sed -e "s/^/add list=Cloud_Blocklist address=/" -e "s/$/ comment=ASN:$ASN/" >> $FILENAME
+            echo "--> Memproses ASN: $ASN dengan mode verbose"
+            
+            # Menggunakan curl dengan flag -v (verbose) untuk debugging koneksi
+            # dan menyimpan output ke file log terpisah
+            curl -svf "https://stat.ripe.net/data/announced-prefixes/data.txt?resource=AS$ASN" -o data.out 2> curl.log
+            
+            echo "--- Log Detail Koneksi (curl.log) ---"
+            cat curl.log
+            echo "------------------------------------"
+
+            # Hanya proses file jika unduhan berhasil
+            if [ -s data.out ]; then
+              cat data.out | grep -E '^[0-9]+\.' | \
+              sed -e "s/^/add list=Cloud_Blocklist address=/" -e "s/$/ comment=ASN:$ASN/" >> $FILENAME
+            else
+              echo "PERINGATAN: Gagal mengambil data untuk ASN $ASN."
+            fi
           done
           echo "# Update Complete" >> $FILENAME
-
-      # Langkah 3: Simpan perubahan (commit & push) kembali ke repository
-      - name: Commit and push the updated blocklist
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "Update cloud blocklist"
-          file_pattern: Cloud_Blocklist.rsc
