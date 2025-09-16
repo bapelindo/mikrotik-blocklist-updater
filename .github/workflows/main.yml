@@ -24,15 +24,16 @@ jobs:
 
           for ASN in "${ASN_LIST[@]}"; do
             echo "# Fetching ASN: $ASN"
+            # Menggunakan curl untuk mengambil data dan memformatnya menjadi perintah MikroTik
             curl -s "https://stat.ripe.net/data/announced-prefixes/data.txt?resource=AS$ASN" | \
             grep -E '^[0-9]+\.' | \
             sed -e "s/^/add list=Cloud_Blocklist address=/" -e "s/$/ comment=ASN:$ASN/" >> $FILENAME
           done
           echo "# Update Complete" >> $FILENAME
 
-      - name: Update Gist
-        uses: exuanbo/actions-sync-gist@v2
-        with:
-          token: ${{ secrets.GIST_TOKEN }}
-          gist_id: https://gist.github.com/bapelindo/8c1e4d500148bf02966aac48176ba8de
-          file_path: 'Cloud_Blocklist.rsc'
+      - name: Update Gist using GitHub CLI
+        env:
+          GH_TOKEN: ${{ secrets.GIST_TOKEN }}
+          GIST_ID: ${{ secrets.GIST_ID }}
+        run: |
+          gh gist edit "$GIST_ID" Cloud_Blocklist.rsc
