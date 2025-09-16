@@ -5,6 +5,11 @@ on:
     - cron: '0 2 * * 1' # Berjalan setiap Senin jam 2 pagi
   workflow_dispatch: # Tombol untuk menjalankan manual
 
+# --- TAMBAHKAN BAGIAN INI ---
+permissions:
+  contents: write
+# --------------------------
+
 jobs:
   update-blocklist:
     runs-on: ubuntu-latest
@@ -13,7 +18,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Langkah 2: Membuat file blocklist (sama seperti sebelumnya)
+      # Langkah 2: Membuat file blocklist
       - name: Generate Blocklist File
         run: |
           #!/bin/bash
