@@ -1,19 +1,38 @@
-name: Gist Read Test
+name: Update MikroTik Blocklist
 
 on:
-  workflow_dispatch: # Hanya bisa dijalankan manual
+  schedule:
+    - cron: '0 2 * * 1' # Berjalan setiap Senin jam 2 pagi
+  workflow_dispatch: # Tombol untuk menjalankan manual
 
 jobs:
-  read-test:
+  update-blocklist:
     runs-on: ubuntu-latest
     steps:
-      - name: Authenticate and View Gist
-        env:
-          GH_TOKEN: ${{ secrets.GIST_TOKEN }}
-          GIST_ID: ${{ secrets.GIST_ID }}
+      # Langkah 1: Mengambil salinan repository
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # Langkah 2: Membuat file blocklist (sama seperti sebelumnya)
+      - name: Generate Blocklist File
         run: |
-          echo "Memulai tes otentikasi dan pembacaan Gist..."
-          echo "${GH_TOKEN}" | gh auth login --with-token
-          
-          echo "Mencoba melihat Gist dengan ID: ${GIST_ID}"
-          gh gist view "$GIST_ID"
+          #!/bin/bash
+          ASN_LIST=("16509" "14618" "37963" "45102" "55967" "14061" "31898" "24940")
+          FILENAME="Cloud_Blocklist.rsc"
+          echo "# Generated on $(date)" > $FILENAME
+          echo "/ip firewall address-list" > $FILENAME
+          echo "remove [find list=Cloud_Blocklist]" >> $FILENAME
+          for ASN in "${ASN_LIST[@]}"; do
+            echo "# Fetching ASN: $ASN"
+            curl -s "https://stat.ripe.net/data/announced-prefixes/data.txt?resource=AS$ASN" | \
+            grep -E '^[0-9]+\.' | \
+            sed -e "s/^/add list=Cloud_Blocklist address=/" -e "s/$/ comment=ASN:$ASN/" >> $FILENAME
+          done
+          echo "# Update Complete" >> $FILENAME
+
+      # Langkah 3: Simpan perubahan (commit & push) kembali ke repository
+      - name: Commit and push the updated blocklist
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Update cloud blocklist"
+          file_pattern: Cloud_Blocklist.rsc
