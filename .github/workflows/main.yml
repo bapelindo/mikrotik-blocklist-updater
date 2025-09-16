@@ -15,7 +15,7 @@ jobs:
       - name: Generate Blocklist File
         run: |
           #!/bin/bash
-          ASN_LIST=("16509" "14618" "37963" "45102" "55967" "14061" "31898" "24940")
+          ASN_LIST=("16509" "14618" "37963" "45102" "55967" "14061" "31898" "24940") # Daftar ASN (Azure & GCP sudah dihapus)
           FILENAME="Cloud_Blocklist.rsc"
 
           echo "# Generated on $(date)" > $FILENAME
@@ -23,26 +23,21 @@ jobs:
           echo "remove [find list=Cloud_Blocklist]" >> $FILENAME
 
           for ASN in "${ASN_LIST[@]}"; do
-            echo "--> Memproses ASN: $ASN"
-            HTTP_STATUS=$(curl -s -o data.out -w "%{http_code}" "https://stat.ripe.net/data/announced-prefixes/data.txt?resource=AS$ASN")
-            echo "Server Response Code: $HTTP_STATUS"
-            if [ "$HTTP_STATUS" -eq 200 ]; then
-              cat data.out | grep -E '^[0-9]+\.' | \
-              sed -e "s/^/add list=Cloud_Blocklist address=/" -e "s/$/ comment=ASN:$ASN/" >> $FILENAME
-            else
-              echo "PERINGATAN: Gagal mengambil data untuk ASN $ASN. Server merespons dengan kode $HTTP_STATUS."
-            fi
+            echo "# Fetching ASN: $ASN"
+            # Menggunakan curl untuk mengambil data dan memformatnya menjadi perintah MikroTik
+            curl -s "https://stat.ripe.net/data/announced-prefixes/data.txt?resource=AS$ASN" | \
+            grep -E '^[0-9]+\.' | \
+            sed -e "s/^/add list=Cloud_Blocklist address=/" -e "s/$/ comment=ASN:$ASN/" >> $FILENAME
           done
           echo "# Update Complete" >> $FILENAME
 
       - name: Update Gist using GitHub CLI
         env:
-          GH_TOKEN: ${{ secrets.GIST_TOKEN }}
+          GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
           GIST_ID: ${{ secrets.GIST_ID }}
         run: |
-          echo "Mencoba login ke GitHub CLI..."
-          echo "${GH_TOKEN}" | gh auth login --with-token
+          # Perintah ini memaksa login secara eksplisit menggunakan token Anda
+          echo "${GIST_TOKEN}" | gh auth login --with-token
           
-          echo "Mencoba mengedit Gist ID: ${GIST_ID}"
-          # Menjalankan perintah edit dan menangkap semua output (termasuk eror)
-          gh gist edit "$GIST_ID" Cloud_Blocklist.rsc 2>&1 || true
+          # Setelah login berhasil, perintah edit ini akan berjalan
+          gh gist edit "$GIST_ID" Cloud_Blocklist.rsc
