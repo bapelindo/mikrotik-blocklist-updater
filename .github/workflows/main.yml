@@ -17,7 +17,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Langkah 2: Membuat file blocklist dengan mode verbose
+      # Langkah 2: Membuat file blocklist
       - name: Generate Blocklist File
         run: |
           #!/bin/bash
@@ -29,17 +29,28 @@ jobs:
           echo "remove [find list=Cloud_Blocklist]" >> $FILENAME
 
           for ASN in "${ASN_LIST[@]}"; do
-            echo "--> Memproses ASN: $ASN dengan mode SANGAT DETAIL (verbose)"
+            echo "--> Memproses ASN: $ASN"
             
-            # Menggunakan curl dengan flag -v (verbose) untuk debugging koneksi mendalam
-            # Stderr (2>) dialihkan ke stdout (1) agar semua log tertangkap
-            curl -v "https://stat.ripe.net/data/announced-prefixes/data.txt?resource=AS$ASN" 2>&1 | \
-            grep -E '^[0-9]+\.' | \
-            sed -e "s/^/add list=Cloud_Blocklist address=/" -e "s/$/ comment=ASN:$ASN/" >> $FILENAME
+            # Menjalankan curl dengan mode verbose dan menyimpan log error ke file terpisah
+            curl -v --fail --silent "https://stat.ripe.net/data/announced-prefixes/data.txt?resource=AS$ASN" -o "data.out" 2> "curl_error.log"
+            
+            echo "--- Log Detail Koneksi (curl_error.log) ---"
+            cat curl_error.log || echo "Tidak ada log eror, koneksi mungkin berhasil."
+            echo "----------------------------------------"
+
+            # Memproses data jika file output tidak kosong
+            if [ -s data.out ]; then
+              echo "Data diterima, memproses..."
+              cat data.out | grep -E '^[0-9]+\.' | \
+              sed -e "s/^/add list=Cloud_Blocklist address=/" -e "s/$/ comment=ASN:$ASN/" >> $FILENAME
+            else
+              echo "PERINGATAN: Tidak ada data yang diterima atau file output kosong."
+            fi
+            echo "" # Memberi spasi antar ASN
           done
           echo "# Update Complete" >> $FILENAME
 
-      # Langkah 3: Simpan perubahan (commit & push) kembali ke repository
+      # Langkah 3: Simpan perubahan (commit & push)
       - name: Commit and push the updated blocklist
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
